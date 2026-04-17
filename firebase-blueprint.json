@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "Supplier": {
+      "title": "Supplier",
+      "description": "A company or individual that provides products.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the supplier" },
+        "contact": { "type": "string", "description": "Contact information (email, phone, etc.)" },
+        "address": { "type": "string", "description": "Physical address of the supplier" }
+      },
+      "required": ["name", "contact"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "An item available for purchase.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the product" },
+        "code": { "type": "string", "description": "Unique product code or SKU" },
+        "price": { "type": "number", "description": "Price of the product" },
+        "imageUrl": { "type": "string", "description": "URL to the product image" },
+        "supplierId": { "type": "string", "description": "Reference to the Supplier document ID" },
+        "category": { "type": "string", "description": "Category of the product (e.g., electronics, furniture)" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Keywords for visual search matching" }
+      },
+      "required": ["name", "code", "price", "supplierId"]
+    }
+  },
+  "firestore": {
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Collection of suppliers"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Collection of products"
+    }
+  }
+}

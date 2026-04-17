@@ -1,0 +1,6 @@
+{
+  "name": "VisionSearch - Busca de Produtos por Imagem",
+  "description": "Aplicativo de busca visual que identifica produtos e fornecedores a partir de fotos usando Gemini AI e Firestore.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
