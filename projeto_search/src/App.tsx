@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { Login } from './components/Login';
-import { TopBar } from './components/ui';
+import { TopBar, BottomNav } from './components/ui';
 import { SearchView } from './components/SearchView';
 import { CatalogView } from './components/CatalogView';
 import { AdminView } from './components/AdminView';
@@ -74,7 +74,7 @@ export default function App() {
         isAdmin={isAdmin}
       />
 
-      <main className="flex-1">
+      <main className="flex-1 pb-16 md:pb-0">
         {view === 'search' && <SearchView />}
         {view === 'catalog' && <CatalogView />}
         {view === 'admin' && isAdmin && <AdminView userEmail={userEmail} />}
@@ -85,12 +85,18 @@ export default function App() {
         )}
       </main>
 
-      <footer className="border-t border-slate-200 mt-8">
+      <footer className="hidden md:block border-t border-slate-200 mt-8">
         <div className="max-w-[1280px] mx-auto px-6 py-6 flex items-center justify-between text-[11px] text-slate-400 mono">
-          <span>VisionSearch · React 19 · Supabase · Gemini 1.5 Flash</span>
+          <span>VisionSearch · React 19 · Supabase · Llama 4 Scout</span>
           <span>© 2026 Hortti — v1.0.0</span>
         </div>
       </footer>
+
+      <BottomNav
+        currentView={view}
+        onNavigate={(v) => setView(v as any)}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

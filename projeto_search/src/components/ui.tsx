@@ -149,18 +149,19 @@ export function TopBar({ currentView, onNavigate, onLogout, userName, userEmail,
 
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200">
-      <div className="max-w-[1280px] mx-auto px-6 h-16 flex items-center gap-8">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-14 md:h-16 flex items-center gap-4 md:gap-8">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent)' }}>
             <Icon name="scan" size={18} className="text-white" strokeWidth={2.5} />
           </div>
           <div className="flex items-baseline gap-1">
             <span className="font-bold text-[15px] tracking-tight text-slate-900">VisionSearch</span>
-            <span className="mono text-[10px] text-slate-400">v1.0</span>
+            <span className="mono text-[10px] text-slate-400 hidden sm:inline">v1.0</span>
           </div>
         </div>
 
-        <nav className="flex items-center gap-1">
+        {/* Nav tabs — desktop only; mobile uses BottomNav */}
+        <nav className="hidden md:flex items-center gap-1">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -177,15 +178,15 @@ export function TopBar({ currentView, onNavigate, onLogout, userName, userEmail,
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 md:gap-3">
           <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            Gemini 1.5 Flash
+            llama-4-scout
           </div>
-          <div className="w-px h-6 bg-slate-200"></div>
+          <div className="hidden md:block w-px h-6 bg-slate-200"></div>
           <div className="flex items-center gap-2">
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
               style={{ background: 'var(--accent)' }}
             >
               {initials}
@@ -205,6 +206,43 @@ export function TopBar({ currentView, onNavigate, onLogout, userName, userEmail,
         </div>
       </div>
     </header>
+  );
+}
+
+// ── BottomNav (mobile only) ──────────────────────────────────────────────────
+
+interface BottomNavProps {
+  currentView: string;
+  onNavigate: (view: string) => void;
+  isAdmin: boolean;
+}
+
+export function BottomNav({ currentView, onNavigate, isAdmin }: BottomNavProps) {
+  const tabs = [
+    { id: 'search', label: 'Busca', icon: 'camera' },
+    { id: 'catalog', label: 'Catálogo', icon: 'grid' },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: 'shield' }] : []),
+  ];
+
+  return (
+    <nav className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 flex md:hidden safe-area-bottom">
+      {tabs.map((t) => {
+        const active = currentView === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => onNavigate(t.id)}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
+              active ? '' : 'text-slate-400'
+            }`}
+            style={active ? { color: 'var(--accent)' } : {}}
+          >
+            <Icon name={t.icon} size={22} strokeWidth={active ? 2.5 : 1.8} />
+            <span className="text-[10px] font-semibold tracking-wide">{t.label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 

@@ -167,12 +167,12 @@ export function SearchView() {
   };
 
   return (
-    <div className="max-w-[1280px] mx-auto px-6 py-8">
-      <div className="flex items-start justify-between mb-8">
+    <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-6 md:py-8">
+      <div className="flex items-start justify-between mb-6 md:mb-8">
         <div>
           <div className="text-[11px] mono uppercase tracking-widest text-slate-400 mb-2">Busca Visual</div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Encontre o fornecedor por foto</h1>
-          <p className="text-sm text-slate-500 max-w-xl">
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-2">Encontre o fornecedor por foto</h1>
+          <p className="hidden sm:block text-sm text-slate-500 max-w-xl">
             Envie uma imagem do produto. A IA identifica o item, compara com o catálogo e retorna o fornecedor, SKU e preço.
           </p>
         </div>
@@ -201,25 +201,25 @@ export function SearchView() {
           }`}
         >
           <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-          <div className="py-16 px-8 text-center">
+          <div className="py-10 px-5 md:py-16 md:px-8 text-center">
             <div className="inline-flex w-14 h-14 rounded-full bg-white border border-slate-200 items-center justify-center text-slate-500 mb-4 shadow-sm">
               <Icon name="upload" size={22} />
             </div>
-            <h3 className="text-base font-semibold text-slate-900 mb-1">Arraste uma foto ou clique para selecionar</h3>
+            <h3 className="text-base font-semibold text-slate-900 mb-1">Arraste uma foto ou toque para selecionar</h3>
             <p className="text-sm text-slate-500 mb-4">PNG, JPG ou WEBP · até 10 MB</p>
-            <div className="flex items-center justify-center gap-2 text-[11px] mono text-slate-400">
+            <div className="hidden sm:flex items-center justify-center gap-2 text-[11px] mono text-slate-400">
               <span>PRODUTO ÚNICO NA FOTO</span><span>·</span><span>BOA ILUMINAÇÃO</span><span>·</span><span>FUNDO NEUTRO</span>
             </div>
           </div>
-          <div className="border-t border-dashed border-slate-300 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">Ou teste com um exemplo:</span>
-              <div className="flex gap-2">
+          <div className="border-t border-dashed border-slate-300 px-4 md:px-6 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-500 flex-shrink-0">Ou teste com um exemplo:</span>
+              <div className="flex gap-2 overflow-x-auto">
                 {SAMPLE_IMAGES.map((src, i) => (
                   <button
                     key={i}
                     onClick={(e) => { e.stopPropagation(); handleSampleImage(src, i); }}
-                    className="w-11 h-11 rounded-md overflow-hidden border border-slate-200 hover:border-[var(--accent)] hover:scale-105 transition-all"
+                    className="w-11 h-11 flex-shrink-0 rounded-md overflow-hidden border border-slate-200 hover:border-[var(--accent)] hover:scale-105 transition-all"
                   >
                     <img src={src} className="w-full h-full object-cover" />
                   </button>
@@ -233,15 +233,15 @@ export function SearchView() {
       {/* PREVIEW */}
       {phase === 'preview' && imageMeta && (
         <div className="card overflow-hidden anim-fade-in">
-          <div className="grid grid-cols-[1fr_340px]">
-            <div className="relative bg-slate-50 aspect-[4/3] flex items-center justify-center p-6">
+          <div className="flex flex-col md:grid md:grid-cols-[1fr_340px]">
+            <div className="relative bg-slate-50 aspect-video md:aspect-[4/3] flex items-center justify-center p-4 md:p-6">
               <img src={imageMeta.url} className="max-w-full max-h-full object-contain rounded-md" />
             </div>
-            <div className="p-6 flex flex-col">
+            <div className="p-5 md:p-6 flex flex-col border-t md:border-t-0 md:border-l border-slate-100">
               <div className="text-[11px] mono uppercase tracking-widest text-slate-400 mb-3">Imagem pronta</div>
-              <div className="space-y-2.5 text-sm mb-6">
+              <div className="space-y-2.5 text-sm mb-5">
                 {[
-                  ['Arquivo', <span className="mono text-xs truncate min-w-0" title={imageMeta.name}>{imageMeta.name}</span>],
+                  ['Arquivo', <span className="mono text-xs truncate min-w-0 max-w-[160px]" title={imageMeta.name}>{imageMeta.name}</span>],
                   ['Tamanho', <span className="mono text-xs">{(imageMeta.size / 1024).toFixed(1)} KB</span>],
                   ['Modelo', <span className="mono text-xs">llama-4-scout</span>],
                   ['Custo est.', <span className="mono text-xs">~R$ 0,003</span>],
@@ -261,7 +261,7 @@ export function SearchView() {
                 Trocar imagem
               </button>
 
-              <div className="mt-auto pt-6 border-t border-slate-100 text-[11px] text-slate-400 leading-relaxed">
+              <div className="mt-4 md:mt-auto pt-4 md:pt-6 border-t border-slate-100 text-[11px] text-slate-400 leading-relaxed">
                 A imagem é enviada ao endpoint seguro <span className="mono">/api/analyze</span>. Não é armazenada.
               </div>
             </div>
@@ -272,8 +272,8 @@ export function SearchView() {
       {/* ANALYZING */}
       {phase === 'analyzing' && imageMeta && (
         <div className="relative rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="grid grid-cols-[1fr_360px]">
-            <div className="relative bg-slate-900 aspect-[4/3] overflow-hidden">
+          <div className="flex flex-col md:grid md:grid-cols-[1fr_360px]">
+            <div className="relative bg-slate-900 aspect-video md:aspect-[4/3] overflow-hidden">
               <img src={imageMeta.url} className="w-full h-full object-contain" />
               <div
                 className="absolute inset-0 opacity-30"
@@ -353,18 +353,18 @@ export function SearchView() {
       {/* RESULTS */}
       {phase === 'results' && analysis && (
         <div className="anim-fade-in">
-          <div className="card p-5 mb-6">
-            <div className="flex items-start gap-5">
-              <div className="w-24 h-24 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+          <div className="card p-4 md:p-5 mb-6">
+            <div className="flex items-start gap-4 md:gap-5">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
                 <img src={imageMeta!.url} className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 text-[11px] mono uppercase tracking-widest text-slate-400 mb-2">
                   <Icon name="sparkles" size={11} style={{ color: 'var(--accent)' }} />
-                  <span>Análise concluída · {results.length} correspondência{results.length !== 1 ? 's' : ''}</span>
+                  <span>Análise concluída · {results.length} match{results.length !== 1 ? 'es' : ''}</span>
                 </div>
-                <h2 className="text-lg font-bold text-slate-900 mb-1">{analysis.productName}</h2>
-                <div className="text-sm text-slate-500 mb-3">
+                <h2 className="text-base md:text-lg font-bold text-slate-900 mb-1 line-clamp-2">{analysis.productName}</h2>
+                <div className="text-sm text-slate-500 mb-2">
                   Categoria: <span className="font-semibold text-slate-900">{analysis.category}</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -375,10 +375,10 @@ export function SearchView() {
               </div>
               <button
                 onClick={reset}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+                className="flex items-center gap-1.5 px-2 md:px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md flex-shrink-0"
               >
                 <Icon name="x" size={14} />
-                Nova busca
+                <span className="hidden sm:inline">Nova busca</span>
               </button>
             </div>
           </div>

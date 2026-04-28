@@ -99,24 +99,25 @@ export function AdminView({ userEmail }: AdminViewProps) {
   };
 
   return (
-    <div className="max-w-[1280px] mx-auto px-6 py-8">
-      <div className="flex items-start justify-between mb-8">
+    <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-6 md:py-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-6 md:mb-8">
         <div>
           <div className="flex items-center gap-2 text-[11px] mono uppercase tracking-widest text-slate-400 mb-2">
             <Icon name="shield" size={11} />
             Admin Tools · Restrito
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Gerenciar base de dados</h1>
-          <p className="text-sm text-slate-500">
-            Autenticado como <span className="mono text-slate-900">{userEmail}</span>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-2">Gerenciar base de dados</h1>
+          <p className="text-sm text-slate-500 max-w-xs md:max-w-none">
+            Autenticado como <span className="mono text-slate-900 break-all">{userEmail}</span>
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={seedData} disabled={loading}>
+          <Button variant="secondary" onClick={seedData} disabled={loading} size="sm">
             <Icon name="database" size={14} />
-            Popular banco
+            <span className="hidden sm:inline">Popular banco</span>
+            <span className="sm:hidden">Seed</span>
           </Button>
-          <Button onClick={() => setModal(tab === 'suppliers' ? 'add-supplier' : 'add-product')}>
+          <Button onClick={() => setModal(tab === 'suppliers' ? 'add-supplier' : 'add-product')} size="sm">
             <Icon name="plus" size={14} />
             {tab === 'suppliers' ? 'Novo fornecedor' : 'Novo produto'}
           </Button>
@@ -124,7 +125,7 @@ export function AdminView({ userEmail }: AdminViewProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
         {[
           { label: 'Produtos', value: products.length, sub: 'cadastrados', icon: 'package' },
           { label: 'Fornecedores', value: suppliers.length, sub: 'ativos', icon: 'building' },
@@ -166,7 +167,8 @@ export function AdminView({ userEmail }: AdminViewProps) {
         : products.length === 0 ? <EmptyState icon="package" title="Nenhum produto" message="Use o botão 'Popular banco' para adicionar dados de teste." />
         : (
           <div className="card overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   {['', 'Produto', 'SKU', 'Categoria', 'Fornecedor', 'Preço', ''].map((h, i) => (
@@ -199,6 +201,7 @@ export function AdminView({ userEmail }: AdminViewProps) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )
       )}
@@ -207,7 +210,7 @@ export function AdminView({ userEmail }: AdminViewProps) {
         suppliers.length === 0
           ? <EmptyState icon="building" title="Nenhum fornecedor" message="Use o botão 'Popular banco' para adicionar dados de teste." />
           : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {suppliers.map((s) => (
                 <div key={s.id} className="card p-5 hover:border-slate-300 transition-colors">
                   <div className="flex items-start justify-between mb-3">
@@ -231,7 +234,7 @@ export function AdminView({ userEmail }: AdminViewProps) {
       )}
 
       {tab === 'seed' && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="card p-6">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>

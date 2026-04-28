@@ -131,3 +131,11 @@ body {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 input[type="file"] { display: none; }
+
+/* iOS safe area for bottom nav */
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Prevent content from sitting under fixed bottom nav on mobile */
+@media (max-width: 767px) {
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+}

@@ -31,7 +31,7 @@ export function Login({ onLogin }: LoginProps) {
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Bem-vindo de volta</h1>
           <p className="text-sm text-slate-500 mb-8 leading-relaxed">
             Acesse o banco de fornecedores e busque produtos a partir de uma foto.
-            Powered by Google Gemini Vision.
+            Powered by Llama 4 Scout Vision.
           </p>
 
           <button
@@ -96,7 +96,7 @@ export function Login({ onLogin }: LoginProps) {
         <div className="relative h-full flex flex-col justify-between p-12 text-white">
           <div className="flex items-center gap-2 text-xs mono opacity-80">
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-            LIVE · Supabase + Gemini
+            LIVE · Supabase + Llama 4 Scout
           </div>
 
           <div>
@@ -108,7 +108,7 @@ export function Login({ onLogin }: LoginProps) {
             <div className="space-y-5">
               {[
                 ['01', 'Envie uma imagem', 'PNG, JPG ou WEBP até 10 MB'],
-                ['02', 'IA analisa em segundos', 'Gemini extrai categoria e tags visuais'],
+                ['02', 'IA analisa em segundos', 'Llama 4 Scout extrai categoria e tags visuais'],
                 ['03', 'Receba o match', 'Produto, SKU, preço e contato do fornecedor'],
               ].map(([num, title, desc]) => (
                 <div key={num} className="flex gap-4">
