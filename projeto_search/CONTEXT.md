@@ -21,8 +21,10 @@
 | Autenticação | Supabase Auth (Google OAuth) | — |
 | IA / Visão | Google Gemini API | 1.29.0 |
 | Deploy | Vercel (SPA + Serverless) | — |
-| Ícones | Lucide React | 0.546.0 |
+| Ícones | Custom `Icon.tsx` (SVG inline) | — |
 | Utilitários CSS | clsx + tailwind-merge | — |
+
+> **Nota:** Não há dependência do Lucide React. Os ícones são um componente customizado `Icon.tsx` com paths SVG inline para manter o bundle leve.
 
 ---
 
@@ -33,12 +35,19 @@ projeto_search/
 ├── api/
 │   └── analyze.ts              # Serverless function Vercel — chama Gemini API
 ├── src/
-│   ├── App.tsx                 # Componente raiz — toda a lógica principal
+│   ├── App.tsx                 # Componente raiz — auth, routing de views, footer
 │   ├── main.tsx                # Entry point React
-│   ├── index.css               # Design tokens Tailwind (cores, fontes)
+│   ├── index.css               # Design tokens Tailwind (cores, fontes, animações)
 │   ├── types.ts                # Interfaces TypeScript (Product, Supplier, SearchResult)
 │   ├── components/
-│   │   └── ProductCard.tsx     # Card de exibição de produto + fornecedor
+│   │   ├── Login.tsx           # Tela de login (Google OAuth + email placeholder)
+│   │   ├── SearchView.tsx      # View de busca visual (phases: idle/preview/analyzing/results)
+│   │   ├── CatalogView.tsx     # View de catálogo completo com filtros
+│   │   ├── AdminView.tsx       # View admin (tabs: produtos/fornecedores/seed, modais, toast)
+│   │   ├── ProductCard.tsx     # Card de produto com confidence badge e tag highlight
+│   │   ├── Icon.tsx            # Sistema de ícones SVG inline (sem Lucide)
+│   │   └── ui.tsx              # Componentes compartilhados: Button, Badge, Modal, Field,
+│   │                           #   TopBar, EmptyState, formatBRL, categoryLabel, inputCls
 │   ├── lib/
 │   │   ├── supabase.ts         # Cliente Supabase (createClient)
 │   │   ├── gemini.ts           # Chamada ao endpoint /api/analyze
@@ -122,7 +131,9 @@ GEMINI_API_KEY="AIzaSyCIcA3HyFNFJ_yC44pTMEGC_nplawh0dlU"
 - **Fluxo:** Redirect (não popup) — `signInWithOAuth({ provider: 'google' })`
 - **Após login:** Supabase redireciona de volta para `window.location.origin`
 - **Estado:** Gerenciado via `supabase.auth.onAuthStateChange` + `getSession()`
-- **Admin:** Usuário com email `mathkraieski@gmail.com` vê "Admin Tools" com botões para popular e adicionar produtos
+- **Admin:** Usuário com email `mathkraieski@gmail.com` — vê aba "Admin" na TopBar e tem acesso ao AdminView
+- **Login por email:** Campo presente na tela de Login mas desabilitado (placeholder "Em breve")
+- **View persistida:** última view ativa salva em `localStorage['vs.view']`, restaurada no próximo acesso
 
 ---
 
@@ -136,7 +147,7 @@ GEMINI_API_KEY="AIzaSyCIcA3HyFNFJ_yC44pTMEGC_nplawh0dlU"
    └── Chama POST /api/analyze com { base64Image, mimeType }
 
 3. /api/analyze (serverless / vite middleware)
-   └── Chama Gemini API (gemini-1.5-flash)
+   └── Chama Gemini API (gemini-2.0-flash)
    └── Prompt: identificar nome, categoria e 5-10 tags
    └── Retorna JSON: { productName, category, tags[] }
 
@@ -156,7 +167,7 @@ GEMINI_API_KEY="AIzaSyCIcA3HyFNFJ_yC44pTMEGC_nplawh0dlU"
 - Rota: `POST /api/analyze`
 - Runtime: Node.js 20.x (Vercel Serverless)
 - Usa `GEMINI_API_KEY` do ambiente do servidor
-- Modelo: `gemini-1.5-flash`
+- Modelo: `gemini-2.0-flash`
 - Retorna: `{ productName: string, category: string, tags: string[] }`
 
 ### Desenvolvimento local: `vite.config.ts`
@@ -199,28 +210,114 @@ supabase.from('products').insert({ name, code, price, image_url, supplier_id, ca
 ## Componentes Principais
 
 ### `App.tsx`
-Toda a lógica da aplicação em um único componente. Estados principais:
+Componente raiz enxuto — apenas auth, routing de views e footer. Estados:
 - `session` — sessão Supabase (`Session | null`)
-- `results` — resultados da busca visual
-- `allProducts` — catálogo completo
-- `view` — `'search' | 'catalog'`
-- `selectedImage` — base64 da imagem carregada
-- `searching` — loading state da busca
+- `loading` — estado de carregamento inicial do auth
+- `view` — `'search' | 'catalog' | 'admin'` (persistido em `localStorage` via key `vs.view`)
 
-Duas views principais:
-- **BUSCA VISUAL:** Upload de imagem + botão de busca + resultados
-- **CATÁLOGO:** Listagem com filtro por nome/SKU e por categoria
+Lógica delegada para componentes de view. Admin identificado pelo email `mathkraieski@gmail.com`. Renderiza `<AdminView>` apenas se `isAdmin === true`.
+
+Footer: `© 2026 Hortti — v1.0.0` (produto da Hortti Sourcing Platform).
+
+---
+
+### `Login.tsx`
+Layout dois painéis:
+- **Esquerda:** botão Google OAuth (funcional) + campo email/password (desabilitado, "Em breve")
+- **Direita (lg+):** painel hero com explicação 3 passos (visível apenas desktop)
+
+---
+
+### `SearchView.tsx`
+Máquina de estados com 4 fases (`Phase = 'idle' | 'preview' | 'analyzing' | 'results'`):
+
+| Fase | Descrição |
+|------|-----------|
+| `idle` | Dropzone com drag-and-drop + 4 imagens de exemplo do Unsplash |
+| `preview` | Thumbnail da imagem + metadados (nome, tamanho, modelo, custo estimado ~R$0,003) |
+| `analyzing` | Overlay de análise com progress bar, 4 steps animados, tags aparecendo uma a uma |
+| `results` | Resumo da análise + grid de ProductCards com scores de confiança |
+
+**Scoring de confiança:**
+```typescript
+const overlap = tags_do_produto.filter(t => tags_do_gemini.includes(t)).length;
+const confidence = Math.min(0.98, 0.55 + overlap * 0.09);
+```
+Resultados ordenados por `confidence` desc. Exibido como badge `XX% match` no canto superior esquerdo da imagem no card.
+
+**Imagens de exemplo:** 4 URLs do Unsplash (pendente, smartphone, cadeira, fone) que são baixadas via `fetch` e convertidas em `File` para simular um upload real.
+
+---
+
+### `CatalogView.tsx`
+- Busca por nome, SKU **ou tag** (full-text no campo único)
+- Filtro por categoria via segmented control: Todos / Iluminação / Eletrônicos / Móveis / Outros
+- Skeleton shimmer em grid 3-col durante loading
+- Botão de refresh manual no header
+- Ordenação por `created_at DESC` (mais novos primeiro)
+
+---
+
+### `AdminView.tsx`
+View restrita ao admin com 3 abas:
+
+**Aba Produtos:**
+- Tabela com imagem thumbnail, nome, SKU, categoria, fornecedor, preço, botão delete
+- Confirmação inline (delete direto via Supabase)
+
+**Aba Fornecedores:**
+- Grid 2 colunas com cards: avatar de iniciais, badge "Ativo", contato, endereço, contador de produtos vinculados
+
+**Aba Seed & Import:**
+- Botão "Executar seed" (mesmo que o do header)
+- Card "Importar CSV" — placeholder desabilitado ("Em breve")
+
+**Elementos globais do AdminView:**
+- Stats cards no topo (4 métricas: Produtos, Fornecedores, Categorias, Admin)
+- Modal `AddProductModal` — campos: nome, SKU, preço, categoria, fornecedor, URL imagem, tags CSV
+- Modal `AddSupplierModal` — campos: razão social, contato, endereço
+- Toast de feedback (2,5s, canto inferior direito)
+- Botão contextual no header muda de "Novo produto" para "Novo fornecedor" conforme a aba ativa
+
+---
 
 ### `ProductCard.tsx`
-Card visual com layout `grid-cols-[180px_1fr]`:
-- Imagem do produto (180px, object-cover)
-- Badge com SKU (canto superior direito da imagem)
-- Grid 2 colunas: Produto, Código, Fornecedor, Preço (badge verde)
-- Contato do fornecedor (full width)
-- Botão "Falar com Vendedor" (placeholder)
+Layout `flex flex-col` com image area `aspect-[4/3]`:
+- Hover: `scale-105` na imagem (500ms) + shadow elevada no card
+- Badge SKU no canto superior direito (tom `mono` — fundo preto)
+- Badge de confiança `XX% match` no canto superior esquerdo (apenas quando `confidence !== null`)
+- Tags (até 4): as que fazem match com a busca ficam destacadas em cor accent
+- Botão "Falar com vendedor" (placeholder) + botão copiar SKU (via `navigator.clipboard`)
+
+---
+
+### `Icon.tsx`
+Componente SVG inline customizado — não depende de biblioteca externa. Props: `name`, `size`, `className`, `strokeWidth`, `style`.
+
+Ícones disponíveis: `search`, `upload`, `sparkles`, `zap`, `grid`, `x`, `check`, `message`, `phone`, `mapPin`, `plus`, `logout`, `database`, `edit`, `trash`, `info`, `history`, `camera`, `copy`, `mail`, `building`, `scan`, `package`, `shield`, `arrowRight`, `refreshCw`, `users`.
+
+---
+
+### `ui.tsx` — Componentes compartilhados
+
+| Export | Descrição |
+|--------|-----------|
+| `Button` | variants: `primary`, `secondary`, `ghost`, `danger`; sizes: `sm`, `md`, `lg` |
+| `Badge` | tones: `neutral`, `accent`, `success`, `warning`, `mono` |
+| `EmptyState` | ícone + título + mensagem + action opcional |
+| `Modal` | overlay + card centrado, fecha ao clicar fora |
+| `Field` | label + children + hint opcional |
+| `TopBar` | Header sticky com blur, logo, nav tabs, avatar, botão logout |
+| `inputCls` | string de classes Tailwind para inputs padronizados |
+| `formatBRL` | `n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })` |
+| `categoryLabel` | mapeia `'lighting'→'Iluminação'`, `'electronics'→'Eletrônicos'`, etc. |
+
+**TopBar:** sticky top-0, backdrop-blur, tabs `Busca Visual / Catálogo / Admin` (Admin só para isAdmin), avatar com iniciais, indicador "Gemini 1.5 Flash" (dot verde), botão logout.
+
+---
 
 ### `src/lib/gemini.ts`
-Wrapper simples que faz `fetch('POST /api/analyze')`. Não chama Gemini diretamente — delega ao endpoint seguro.
+Wrapper que faz `fetch('POST /api/analyze')`. Não chama Gemini diretamente — delega ao endpoint seguro.
 
 ### `src/lib/supabase.ts`
 ```typescript
@@ -278,18 +375,31 @@ npx vercel --prod   # Deploy manual
 
 ## Dados de Teste (Seed)
 
-O botão "Popular Banco de Dados" (visível apenas para admin) insere automaticamente:
+O botão "Popular banco" (aba Seed & Import ou header do AdminView) insere automaticamente:
 
 **3 Fornecedores:**
-- Distribuidora Global Tech (São Paulo)
-- Móveis & Design Ltda (Rio de Janeiro)
-- Fornecedor Padrão (Zona Industrial)
+- Distribuidora Global Tech (São Paulo — eletrônicos)
+- Móveis & Design Ltda (Rio de Janeiro — móveis)
+- Iluminar Comércio de Luminárias (São Paulo — iluminação)
 
-**9 Produtos:**
-- 6 pendentes de iluminação (category: `lighting`)
-- 1 smartphone Samsung Galaxy S24 Ultra (category: `electronics`)
-- 1 cadeira ergonômica (category: `furniture`)
-- 1 fone de ouvido noise cancelling (category: `electronics`)
+**12 Produtos:**
+
+| SKU | Nome | Categoria | Fornecedor |
+|-----|------|-----------|------------|
+| LUM-PND-001 | Pendente Bulbo Industrial Preto | lighting | Iluminar |
+| LUM-PND-014 | Pendente Cúpula Latão Escovado | lighting | Iluminar |
+| LUM-PND-022 | Pendente Globo Vidro Fumê | lighting | Iluminar |
+| LUM-PND-031 | Pendente Geométrico Dourado | lighting | Iluminar |
+| LUM-PND-040 | Pendente Rattan Natural | lighting | Iluminar |
+| LUM-MES-008 | Luminária de Mesa Articulável | lighting | Iluminar |
+| ELT-SMG-S24U | Samsung Galaxy S24 Ultra 256GB | electronics | Global Tech |
+| ELT-FON-NC01 | Fone Over-Ear Noise Cancelling | electronics | Global Tech |
+| ELT-NTB-PRO14 | Notebook Pro 14" M3 512GB | electronics | Global Tech |
+| MOB-CAD-PRES | Cadeira Ergonômica Presidente | furniture | Móveis & Design |
+| MOB-MES-CVL6 | Mesa de Jantar Carvalho 6 Lugares | furniture | Móveis & Design |
+| MOB-POL-VRD | Poltrona Veludo Verde Musgo | furniture | Móveis & Design |
+
+Todas as imagens são do Unsplash (URLs públicas, `w=600&q=80`).
 
 ---
 

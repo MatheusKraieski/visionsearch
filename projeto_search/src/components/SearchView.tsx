@@ -1,6 +1,7 @@
 import { useState, useRef, ChangeEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { analyzeProductImage } from '../lib/gemini';
+import { getEmbedding } from '../lib/embeddings';
 import { Product, Supplier } from '../types';
 import { ProductCard } from './ProductCard';
 import { Button, EmptyState } from './ui';
@@ -21,7 +22,7 @@ const SAMPLE_IMAGES = [
 
 const STEPS = [
   'Fazendo upload da imagem',
-  'Gemini analisando conteúdo visual',
+  'Llama analisando conteúdo visual',
   'Extraindo categoria e tags',
   'Buscando produtos no Supabase',
 ];
@@ -78,11 +79,11 @@ export function SearchView() {
     }, 60);
 
     try {
-      const geminiResult = await analyzeProductImage(imageMeta.base64, imageMeta.mimeType);
+      const aiResult = await analyzeProductImage(imageMeta.base64, imageMeta.mimeType);
       const analysisData: Analysis = {
-        productName: geminiResult.productName ?? 'Produto identificado',
-        category: geminiResult.category ?? 'other',
-        tags: geminiResult.tags ?? [],
+        productName: aiResult.productName ?? 'Produto identificado',
+        category: aiResult.category ?? 'other',
+        tags: aiResult.tags ?? [],
       };
 
       // Animate tags appearing
@@ -91,33 +92,65 @@ export function SearchView() {
         setFoundTags((prev) => [...prev, analysisData.tags[i]]);
       }
 
-      // Query Supabase
-      let { data } = await supabase
-        .from('products')
-        .select('*, supplier:suppliers(*)')
-        .eq('category', analysisData.category);
+      let scored: ResultItem[] = [];
 
-      if (!data || data.length === 0) {
-        const { data: tagData } = await supabase
-          .from('products')
-          .select('*, supplier:suppliers(*)')
-          .overlaps('tags', analysisData.tags);
-        data = tagData;
+      // Try vector search first
+      try {
+        const queryText = `${analysisData.productName} ${analysisData.tags.join(' ')}`;
+        const embedding = await getEmbedding(queryText);
+
+        const { data: vectorData } = await supabase.rpc('match_products', {
+          query_embedding: embedding,
+          match_threshold: 0.3,
+          match_count: 10,
+        });
+
+        if (vectorData && vectorData.length > 0) {
+          const ids = vectorData.map((r: any) => r.id);
+          const { data: fullData } = await supabase
+            .from('products')
+            .select('*, supplier:suppliers(*)')
+            .in('id', ids);
+
+          scored = (fullData ?? []).map((row: any) => {
+            const match = vectorData.find((v: any) => v.id === row.id);
+            return {
+              product: { id: row.id, name: row.name, code: row.code, price: row.price, imageUrl: row.image_url, supplierId: row.supplier_id, category: row.category, tags: row.tags },
+              supplier: row.supplier,
+              confidence: Math.min(0.98, match?.similarity ?? 0.5),
+            };
+          }).sort((a: ResultItem, b: ResultItem) => b.confidence - a.confidence);
+        }
+      } catch {
+        // pgvector not available yet, fall through to tag search
       }
 
-      const scored: ResultItem[] = (data ?? []).map((row: any) => {
-        const product: Product = {
-          id: row.id, name: row.name, code: row.code, price: row.price,
-          imageUrl: row.image_url, supplierId: row.supplier_id,
-          category: row.category, tags: row.tags,
-        };
-        const supplier: Supplier = row.supplier;
-        const overlap = (row.tags ?? []).filter((t: string) =>
-          analysisData.tags.some((at) => at.toLowerCase() === t.toLowerCase())
-        ).length;
-        const confidence = Math.min(0.98, 0.55 + overlap * 0.09);
-        return { product, supplier, confidence };
-      }).sort((a: ResultItem, b: ResultItem) => b.confidence - a.confidence);
+      // Fallback: category + tag overlap search
+      if (scored.length === 0) {
+        let { data } = await supabase
+          .from('products')
+          .select('*, supplier:suppliers(*)')
+          .eq('category', analysisData.category);
+
+        if (!data || data.length === 0) {
+          const { data: tagData } = await supabase
+            .from('products')
+            .select('*, supplier:suppliers(*)')
+            .overlaps('tags', analysisData.tags);
+          data = tagData;
+        }
+
+        scored = (data ?? []).map((row: any) => {
+          const overlap = (row.tags ?? []).filter((t: string) =>
+            analysisData.tags.some((at) => at.toLowerCase() === t.toLowerCase())
+          ).length;
+          return {
+            product: { id: row.id, name: row.name, code: row.code, price: row.price, imageUrl: row.image_url, supplierId: row.supplier_id, category: row.category, tags: row.tags },
+            supplier: row.supplier,
+            confidence: Math.min(0.98, 0.55 + overlap * 0.09),
+          };
+        }).sort((a: ResultItem, b: ResultItem) => b.confidence - a.confidence);
+      }
 
       clearInterval(tick);
       setProgress(100);
@@ -210,7 +243,7 @@ export function SearchView() {
                 {[
                   ['Arquivo', <span className="mono text-xs truncate min-w-0" title={imageMeta.name}>{imageMeta.name}</span>],
                   ['Tamanho', <span className="mono text-xs">{(imageMeta.size / 1024).toFixed(1)} KB</span>],
-                  ['Modelo', <span className="mono text-xs">gemini-1.5-flash</span>],
+                  ['Modelo', <span className="mono text-xs">llama-4-scout</span>],
                   ['Custo est.', <span className="mono text-xs">~R$ 0,003</span>],
                 ].map(([label, value]) => (
                   <div key={String(label)} className="flex justify-between items-center gap-3">
@@ -263,7 +296,7 @@ export function SearchView() {
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--accent)' }} />
                 VISION · {String(progress).padStart(3, '0')}%
               </div>
-              <div className="absolute bottom-3 left-3 mono text-[10px] text-white/60">gemini-1.5-flash</div>
+              <div className="absolute bottom-3 left-3 mono text-[10px] text-white/60">llama-4-scout</div>
             </div>
 
             <div className="p-6 flex flex-col">

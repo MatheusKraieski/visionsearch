@@ -1,0 +1,243 @@
+CHECKLIST DE LANCAMENTO — VisionSearch
+O que falta para ir ao ar
+========================================
+
+Data de referencia: abril de 2026
+
+
+O QUE JA ESTA PRONTO
+---------------------
+
+  [x] Projeto React rodando localmente
+  [x] Supabase configurado (banco, autenticacao, RLS)
+  [x] Analise de imagem por IA funcionando (Groq Llama 4 Scout)
+  [x] Groq API Key configurada
+  [x] HuggingFace Token configurado
+  [x] Busca por tags e categoria funcionando
+  [x] Painel admin com cadastro de produtos e fornecedores
+  [x] Upload de imagem de produto (Supabase Storage no codigo)
+  [x] Geracao de embeddings no codigo (endpoint /api/embed pronto)
+  [x] Busca vetorial por similaridade no codigo (pronta, aguardando pgvector)
+
+
+O QUE FALTA — POR ORDEM DE PRIORIDADE
+=======================================
+
+
+PASSO 1 — Ativar pgvector no Supabase  [CONCLUIDO]
+------------------------------------------------------
+
+  Sem isso a busca por similaridade nao funciona e os embeddings
+  nao sao salvos nos produtos.
+
+  Como fazer:
+    1. Acessar supabase.com > seu projeto
+    2. Ir em SQL Editor (menu lateral)
+    3. Colar e executar o seguinte SQL:
+
+  -- Cole exatamente isso no SQL Editor:
+
+  CREATE EXTENSION IF NOT EXISTS vector;
+
+  ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS embedding vector(384);
+
+  CREATE OR REPLACE FUNCTION match_products(
+    query_embedding vector(384),
+    match_threshold float DEFAULT 0.3,
+    match_count int DEFAULT 10
+  )
+  RETURNS TABLE (
+    id uuid, name text, code text, price numeric,
+    image_url text, supplier_id uuid, category text,
+    tags text[], similarity float
+  )
+  LANGUAGE sql STABLE AS $$
+    SELECT id, name, code, price, image_url, supplier_id, category, tags,
+      1 - (embedding <=> query_embedding) AS similarity
+    FROM products
+    WHERE 1 - (embedding <=> query_embedding) > match_threshold
+    ORDER BY embedding <=> query_embedding
+    LIMIT match_count;
+  $$;
+
+  -- Fim do SQL
+
+  Como verificar se funcionou:
+    Executar no SQL Editor: SELECT * FROM products LIMIT 1;
+    Se aparecer a coluna "embedding" na listagem, deu certo.
+
+
+PASSO 2 — Criar o bucket de imagens no Supabase  [~5 minutos]
+--------------------------------------------------------------
+
+  Sem isso o upload de fotos reais dos produtos nao funciona.
+
+  Como fazer:
+    1. No Supabase, ir em Storage (menu lateral)
+    2. Clicar em "New bucket"
+    3. Nome: product-images
+    4. Marcar como Public: SIM (toggle ligado)
+    5. Clicar em Save
+
+  Como verificar:
+    O bucket "product-images" deve aparecer na lista de buckets.
+
+
+PASSO 3 — Gerar embeddings dos produtos existentes  [~5 minutos]
+-----------------------------------------------------------------
+
+  Sem isso os 27 produtos ja cadastrados nao aparecem na busca
+  por similaridade, apenas na busca por tags.
+
+  Como fazer (depois de concluir o Passo 1):
+    1. Abrir o app local: npm run dev
+    2. Fazer login com sua conta admin
+    3. Ir na aba Admin > Seed & Import
+    4. Clicar em "Gerar para todos os produtos"
+    5. Aguardar o toast confirmar quantos foram gerados
+
+  Como verificar:
+    Pesquisar uma imagem de produto na busca visual.
+    Se aparecer resultado com percentual de confianca, funcionou.
+
+
+PASSO 4 — Corrigir o login com Google  [~20 minutos]
+-----------------------------------------------------
+
+  O login com Google esta retornando erro 500. Precisa configurar
+  o OAuth no Google Cloud Console e linkar ao Supabase.
+
+  Parte A — Google Cloud Console:
+    1. Acessar console.cloud.google.com
+    2. Selecionar seu projeto (ou criar um novo)
+    3. Menu: APIs & Services > Credentials
+    4. Clicar em "+ Create Credentials" > OAuth 2.0 Client ID
+    5. Tipo: Web application
+    6. Nome: VisionSearch (ou qualquer nome)
+    7. Em "Authorized redirect URIs", adicionar:
+         https://xmrraysovqrpetufzeej.supabase.co/auth/v1/callback
+    8. Clicar em Create
+    9. Copiar o Client ID e o Client Secret gerados
+
+  Parte B — Supabase:
+    1. No Supabase, ir em Authentication > Providers
+    2. Clicar em Google
+    3. Ativar o toggle "Enable Sign in with Google"
+    4. Colar o Client ID e Client Secret copiados acima
+    5. Salvar
+
+  Parte C — URL de redirect para localhost:
+    1. No Supabase, ir em Authentication > URL Configuration
+    2. Em "Redirect URLs", adicionar:
+         http://localhost:3000
+    3. Salvar
+
+  Como verificar:
+    Abrir o app, clicar em "Entrar com Google".
+    Deve abrir a tela de selecao de conta do Google normalmente.
+
+
+PASSO 5 — Fazer o deploy na Vercel  [~20 minutos]
+--------------------------------------------------
+
+  O projeto ainda so roda localmente. Para acessar de qualquer
+  lugar e compartilhar com clientes, precisa estar na Vercel.
+
+  Pre-requisito: codigo precisa estar em um repositorio no GitHub.
+
+  Se o codigo ainda nao esta no GitHub:
+    1. Criar repositorio em github.com (pode ser privado)
+    2. Na pasta do projeto, rodar:
+         git init
+         git add .
+         git commit -m "primeiro commit"
+         git remote add origin https://github.com/seu-usuario/seu-repo.git
+         git push -u origin main
+
+  Deploy na Vercel:
+    1. Acessar vercel.com e criar conta (usar login do GitHub)
+    2. Clicar em "Add New Project"
+    3. Importar o repositorio do GitHub
+    4. Framework: Vite (detectado automatico)
+    5. Em "Environment Variables", adicionar todas as variaveis:
+
+         VITE_SUPABASE_URL       = (copiar do .env.local)
+         VITE_SUPABASE_ANON_KEY  = (copiar do .env.local)
+         GROQ_API_KEY            = (copiar do .env.local)
+         HF_TOKEN                = (copiar do .env.local)
+
+    6. Clicar em Deploy
+    7. Aguardar o build (2 a 3 minutos)
+    8. Copiar a URL gerada (ex: visionsearch.vercel.app)
+
+  Apos o deploy:
+    No Supabase > Authentication > URL Configuration, adicionar
+    a URL da Vercel em "Redirect URLs":
+      https://visionsearch.vercel.app  (ou a URL que a Vercel gerar)
+
+  No Google Cloud Console:
+    Adicionar a URL da Vercel em Authorized redirect URIs:
+      https://visionsearch.vercel.app  (ou a URL gerada)
+
+  Como verificar:
+    Acessar a URL da Vercel no navegador.
+    O app deve carregar normalmente e o login com Google deve funcionar.
+
+
+PASSO 6 — Adicionar produtos reais ao catalogo  [tempo variavel]
+-----------------------------------------------------------------
+
+  Os 27 produtos atuais sao dados de teste (seed com imagens do Unsplash).
+  Para o produto funcionar de verdade, precisa cadastrar os produtos reais.
+
+  Como fazer:
+    1. No app (local ou Vercel), ir em Admin > Fornecedores
+    2. Adicionar os fornecedores reais com nome e contato
+    3. Ir em Admin > Produtos > Novo produto
+    4. Preencher nome, SKU, preco, categoria, fornecedor
+    5. Fazer upload da foto real do produto (campo de imagem)
+    6. Adicionar tags descritivas separadas por virgula
+       (ex: pendente, luminaria, preto, industrial, metal)
+    7. Salvar
+    8. Repetir para cada produto
+
+  Apos cadastrar todos:
+    Admin > Seed & Import > Gerar embeddings para todos os produtos
+    (para ativar a busca por similaridade nos novos produtos)
+
+  Dica sobre as tags:
+    Quanto mais descritivas e especificas, melhor a busca por tags.
+    Inclua: material, cor, formato, uso, categoria, marca se houver.
+
+
+RESUMO — ORDEM DO DIA
+========================================
+
+  Hoje mesmo, sem custo, em ~1 hora:
+
+  [x] 1. Rodar o SQL do pgvector no Supabase     (FEITO)
+  [x] 2. Criar bucket product-images             (FEITO)
+  [x] 3. Gerar embeddings dos produtos           (FEITO)
+  [x] 4. Login com Google                        (FEITO)
+  [ ] 5. Subir para o GitHub e fazer deploy      (20 min)
+
+  Depois do deploy:
+  [ ] 6. Cadastrar produtos reais no catalogo
+
+  Custo total hoje: R$ 0,00
+
+
+DEPOIS DO LANCAMENTO — QUANDO NECESSARIO
+=========================================
+
+  Registrar dominio .com.br               R$ 50/ano
+  Migrar Vercel para plano Pro            R$ 120/mes
+    (obrigatorio para uso comercial)
+  Migrar Supabase para Pro                R$ 150/mes
+    (quando passar de 1.300 produtos com foto ou 500 MB de banco)
+
+
+========================================
+Qualquer duvida, revisar o arquivo PLANO_DE_LANCAMENTO.txt
+para detalhes completos de custos e capacidade.

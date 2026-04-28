@@ -1,7 +1,8 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { Product, Supplier } from '../types';
 import { Button, Badge, EmptyState, Modal, Field, formatBRL, categoryLabel, inputCls } from './ui';
+import { getEmbedding } from '../lib/embeddings';
 import { Icon } from './Icon';
 
 const ADMIN_EMAIL = 'mathkraieski@gmail.com';
@@ -30,6 +31,35 @@ export function AdminView({ userEmail }: AdminViewProps) {
   };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const backfillEmbeddings = async () => {
+    setLoading(true);
+    let lastError = '';
+    try {
+      const { data: all } = await supabase.from('products').select('id, name, tags').is('embedding', null);
+      if (!all || all.length === 0) { showToast('Todos os produtos já têm embeddings'); setLoading(false); return; }
+      let ok = 0;
+      for (const p of all) {
+        try {
+          const text = `${p.name} ${(p.tags ?? []).join(' ')}`;
+          const embedding = await getEmbedding(text);
+          await supabase.from('products').update({ embedding }).eq('id', p.id);
+          ok++;
+        } catch (e: any) {
+          lastError = e.message;
+        }
+      }
+      if (ok === 0 && lastError) {
+        showToast(`Erro: ${lastError}`);
+      } else {
+        showToast(`Embeddings gerados: ${ok}/${all.length} produtos`);
+      }
+    } catch (err: any) {
+      showToast('Erro: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const seedData = async () => {
     setLoading(true);
@@ -223,17 +253,20 @@ export function AdminView({ userEmail }: AdminViewProps) {
           <div className="card p-6">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
-                <Icon name="upload" size={18} />
+                <Icon name="sparkles" size={18} />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900">Importar CSV</h3>
-                <div className="text-xs text-slate-500">Em breve</div>
+                <h3 className="font-bold text-slate-900">Gerar embeddings</h3>
+                <div className="text-xs text-slate-500">Busca vetorial por similaridade</div>
               </div>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed mb-4">
-              Importe centenas de produtos de uma vez com um CSV. Mapeamento automático de colunas e validação de SKUs.
+              Gera vetores de similaridade para todos os produtos sem embedding. Necessário após popular o banco ou ativar o pgvector.
             </p>
-            <Button variant="secondary" className="w-full" disabled>Em breve</Button>
+            <Button onClick={backfillEmbeddings} className="w-full" disabled={loading}>
+              <Icon name="zap" size={14} />
+              Gerar para todos os produtos
+            </Button>
           </div>
         </div>
       )}
@@ -277,14 +310,51 @@ export function AdminView({ userEmail }: AdminViewProps) {
 
 function AddProductModal({ suppliers, onClose, onSave }: { suppliers: Supplier[]; onClose: () => void; onSave: (data: any) => void }) {
   const [form, setForm] = useState({ name: '', code: '', price: '', category: 'lighting', imageUrl: '', supplierId: suppliers[0]?.id ?? '', tags: '' });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleImageFile = (file: File) => {
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setForm((f) => ({ ...f, imageUrl: '' }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    onSave({
-      name: form.name, code: form.code, price: parseFloat(form.price),
-      category: form.category, image_url: form.imageUrl, supplier_id: form.supplierId,
-      tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
-    });
+    setUploading(true);
+    try {
+      let imageUrl = form.imageUrl;
+
+      if (imageFile) {
+        const ext = imageFile.name.split('.').pop();
+        const fileName = `${Date.now()}-${form.code.replace(/[^a-zA-Z0-9]/g, '-')}.${ext}`;
+        const { error } = await supabase.storage.from('product-images').upload(fileName, imageFile);
+        if (!error) {
+          const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
+          imageUrl = data.publicUrl;
+        }
+      }
+
+      const tags = form.tags.split(',').map((t) => t.trim()).filter(Boolean);
+
+      let embedding: number[] | undefined;
+      try {
+        embedding = await getEmbedding(`${form.name} ${tags.join(' ')}`);
+      } catch {
+        // proceed without embedding if HF token not configured or pgvector not enabled
+      }
+
+      onSave({
+        name: form.name, code: form.code, price: parseFloat(form.price),
+        category: form.category, image_url: imageUrl, supplier_id: form.supplierId,
+        tags,
+        ...(embedding ? { embedding } : {}),
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -317,10 +387,26 @@ function AddProductModal({ suppliers, onClose, onSave }: { suppliers: Supplier[]
               </select>
             </Field>
           </div>
-          <Field label="URL da imagem">
-            <input type="url" className={inputCls + ' mono text-xs'} placeholder="https://..." value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} />
+          <Field label="Imagem do produto">
+            <div className="space-y-2">
+              {imagePreview && (
+                <div className="w-full h-28 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+                  <img src={imagePreview} className="max-h-full object-contain" />
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
+              <button type="button" onClick={() => fileRef.current?.click()} className={inputCls + ' w-full text-left text-slate-500 cursor-pointer hover:bg-slate-50'}>
+                {imageFile ? imageFile.name : 'Selecionar arquivo de imagem...'}
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-xs text-slate-400">ou URL externa</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+              <input type="url" className={inputCls + ' mono text-xs'} placeholder="https://..." value={form.imageUrl} onChange={(e) => { setForm({ ...form, imageUrl: e.target.value }); if (e.target.value) { setImageFile(null); setImagePreview(null); } }} />
+            </div>
           </Field>
-          <Field label="Tags (separadas por vírgula)" hint="Palavras-chave usadas pela busca por tags">
+          <Field label="Tags (separadas por vírgula)" hint="Palavras-chave usadas pela busca por similaridade">
             <input className={inputCls} placeholder="pendente, vidro, moderno" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
           </Field>
         </div>
@@ -331,7 +417,7 @@ function AddProductModal({ suppliers, onClose, onSave }: { suppliers: Supplier[]
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
-            <Button type="submit">Salvar produto</Button>
+            <Button type="submit" disabled={uploading}>{uploading ? 'Salvando...' : 'Salvar produto'}</Button>
           </div>
         </div>
       </form>

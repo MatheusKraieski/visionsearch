@@ -1,0 +1,319 @@
+PLANO DE LANCAMENTO — VisionSearch
+====================================
+
+
+VISAO GERAL
+-----------
+
+VisionSearch e um sistema de busca visual de produtos por IA que permite identificar
+fornecedores, SKU e preco a partir de uma foto. Este documento cobre os custos reais
+para lancar o projeto e o passo a passo completo de producao.
+
+
+========================================
+1. CUSTOS POR SERVICO
+========================================
+
+
+SUPABASE (Banco de dados + Storage + Auth)
+------------------------------------------
+  Plano Free    R$ 0/mes       500 MB banco, 1 GB storage, 50.000 usuarios
+  Plano Pro     ~R$ 150/mes    8 GB banco, 100 GB storage, usuarios ilimitados
+  Plano Team    ~R$ 450/mes    Banco ilimitado, suporte prioritario, SLA
+
+  Recomendacao: Free para MVP. Pro quando passar de 500 MB ou precisar de backup automatico.
+
+
+VERCEL (Hospedagem + Deploy + CDN)
+-----------------------------------
+  Plano Hobby       R$ 0/mes       Uso pessoal, 100 GB banda
+  Plano Pro         ~R$ 120/mes    Dominios ilimitados, analytics, 1 TB banda, SLA 99.99%
+  Plano Enterprise  Sob consulta   Contratos, suporte dedicado
+
+  Recomendacao: Hobby para testes. Pro para producao com clientes reais.
+
+  ATENCAO: o plano Hobby nao pode ser usado comercialmente pelos termos da Vercel.
+  Para uso empresarial, mesmo que gratuito, use o plano Pro.
+
+
+GROQ (IA de analise de imagens — Llama 4 Scout Vision)
+-------------------------------------------------------
+  Plano Free          R$ 0/mes             30 req/min, 1.000 req/dia, 14.400 tokens/min
+  Pay-as-you-go       ~R$ 0,03/1K tokens   Sem limite, paga pelo uso
+
+  Estimativa de custo por busca: ~1.500 tokens por imagem = ~R$ 0,05 por busca
+
+  Volume mensal           Custo estimado
+  Ate 200 buscas/mes      Gratis (free tier)
+  1.000 buscas/mes        ~R$ 50/mes
+  5.000 buscas/mes        ~R$ 250/mes
+  20.000 buscas/mes       ~R$ 1.000/mes
+
+
+HUGGINGFACE (Embeddings para busca vetorial)
+---------------------------------------------
+  Plano Free              R$ 0/mes        Rate limited, pode ter fila no pico
+  Plano PRO               ~R$ 55/mes      Prioridade de inferencia, sem fila
+  Inference Endpoints     R$ 60-300/mes   Endpoint dedicado, latencia garantida
+
+  Alternativa gratuita: rodar o modelo localmente com ollama ou transformers.
+  Custo zero, mas exige servidor proprio.
+
+
+DOMINIO
+-------
+  .com.br     ~R$ 50/ano     Registro.br (unico registrador oficial)
+  .com        ~R$ 70-90/ano  Cloudflare Registrar, Namecheap, GoDaddy
+  .app / .io  ~R$ 120-200/ano  Cloudflare Registrar
+
+
+========================================
+2. CAPACIDADE DE PRODUTOS POR PLANO
+========================================
+
+Calculo baseado em 2 imagens por produto com tamanho medio de 400 KB cada
+(imagem de produto tipica comprimida em JPEG ou WEBP).
+
+  2 imagens x 400 KB = 800 KB por produto (armazenamento de fotos)
+
+O banco de dados (Supabase) tem dois limites separados: o storage para as fotos
+e o banco relacional para os dados e vetores de busca. O gargalo e sempre o storage.
+
+
+LIMITE DE ARMAZENAMENTO (fotos dos produtos)
+--------------------------------------------
+
+  Supabase Free (1 GB de storage):
+    Imagem pequena  (~150 KB cada, 300 KB/produto)   --> ate 3.400 produtos
+    Imagem media    (~400 KB cada, 800 KB/produto)   --> ate 1.300 produtos
+    Imagem grande   (~1 MB cada,  2 MB/produto)      --> ate   512 produtos
+
+  Supabase Pro (100 GB de storage):
+    Imagem pequena  (~150 KB cada, 300 KB/produto)   --> ate 340.000 produtos
+    Imagem media    (~400 KB cada, 800 KB/produto)   --> ate 130.000 produtos
+    Imagem grande   (~1 MB cada,  2 MB/produto)      --> ate  51.000 produtos
+
+  Supabase Team (ilimitado na pratica, paga por GB extra):
+    Sem limite pratico para a maioria dos casos de uso.
+    Custo adicional: ~R$ 1,50 por GB extra alem do incluido.
+
+
+LIMITE DO BANCO DE DADOS (dados + vetores de busca)
+----------------------------------------------------
+
+  Cada produto ocupa no banco aproximadamente:
+    Dados do produto (nome, SKU, preco, tags, etc.)   ~1 KB
+    Vetor de embedding para busca por similaridade    ~1,5 KB (384 dimensoes)
+    Total por produto no banco                        ~2,5 KB
+
+  Supabase Free (500 MB de banco):
+    Capacidade aproximada: ate 200.000 produtos no banco
+    (o storage de fotos esgota muito antes do banco)
+
+  Supabase Pro (8 GB de banco):
+    Capacidade aproximada: ate 3.200.000 produtos no banco
+    (o storage de fotos esgota muito antes do banco)
+
+
+RESUMO POR PLANO (com 2 imagens medias de 400 KB por produto)
+--------------------------------------------------------------
+
+  Supabase Free  + fotos reais   -->  ate  1.300 produtos
+  Supabase Free  + fotos pequenas -->  ate  3.400 produtos
+  Supabase Pro   + fotos reais   -->  ate 130.000 produtos
+  Supabase Pro   + fotos grandes -->  ate  51.000 produtos
+
+  Dica: reduzir as imagens para ~200 KB antes do upload dobra a capacidade.
+  Ferramentas gratuitas para comprimir: squoosh.app ou tinypng.com
+
+
+========================================
+3. CENARIOS DE CUSTO MENSAL
+========================================
+
+
+CENARIO A — MVP / Testes internos
+Equipe pequena, uso interno, sem clientes pagantes
+
+  Supabase        Free        R$ 0
+  Vercel          Hobby       R$ 0
+  Groq            Free        R$ 0
+  HuggingFace     Free        R$ 0
+  Dominio         —           R$ 0
+  ----------------------------------------
+  TOTAL                       R$ 0/mes
+  Capacidade de produtos      ate 1.300 (fotos medias) ou 3.400 (fotos pequenas)
+
+
+CENARIO B — Lancamento Comercial (ate ~500 buscas/mes)
+Produto lancado, primeiros clientes, uso moderado
+
+  Supabase        Free ou Pro     R$ 0 – 150
+  Vercel          Pro             R$ 120
+  Groq            Free            R$ 0
+  HuggingFace     Free            R$ 0
+  Dominio .com.br Registro.br     ~R$ 4/mes
+  ----------------------------------------
+  TOTAL                           ~R$ 124 – 274/mes
+  Capacidade de produtos          ate 1.300 (Free) ou 130.000 (Pro)
+
+
+CENARIO C — Escala Media (ate ~3.000 buscas/mes)
+Produto consolidado, multiplos usuarios ativos
+
+  Supabase        Pro             R$ 150
+  Vercel          Pro             R$ 120
+  Groq            Pay-as-you-go   ~R$ 150
+  HuggingFace     Free ou PRO     R$ 0 – 55
+  Dominio         .com.br         R$ 4
+  ----------------------------------------
+  TOTAL                           ~R$ 424 – 479/mes
+  Capacidade de produtos          ate 130.000 (fotos medias)
+
+
+CENARIO D — Alta Escala (10.000+ buscas/mes)
+Volume alto, SLA necessario, multiplas empresas clientes
+
+  Supabase        Pro ou Team         R$ 150 – 450
+  Vercel          Pro                 R$ 120
+  Groq            Pay-as-you-go       ~R$ 500+
+  HuggingFace     Inference Endpoint  ~R$ 200
+  Dominio         .com                R$ 7
+  ----------------------------------------
+  TOTAL                               ~R$ 977 – 1.277/mes
+  Capacidade de produtos              ilimitada (Team) ou 130.000 (Pro)
+
+
+========================================
+3. PASSO A PASSO PARA LANCAMENTO
+========================================
+
+
+ETAPA 1 — Preparar o Supabase para Producao
+Tempo estimado: 30 minutos
+
+  [ ] Acessar o projeto em supabase.com
+  [ ] Ativar a extensao vector no SQL Editor:
+
+        CREATE EXTENSION IF NOT EXISTS vector;
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS embedding vector(384);
+
+  [ ] Criar a funcao match_products (SQL disponivel no projeto)
+  [ ] Verificar as politicas RLS (Row Level Security) estao corretas
+  [ ] Em Storage: criar bucket "product-images" com visibilidade Public
+  [ ] Em Authentication > Providers: ativar Google com Client ID e Secret
+  [ ] Em Authentication > URL Configuration: adicionar o dominio de producao
+
+
+ETAPA 2 — Configurar Google OAuth
+Tempo estimado: 20 minutos
+
+  [ ] Acessar console.cloud.google.com
+  [ ] Criar projeto (ou usar existente)
+  [ ] APIs & Services > Credentials > Create OAuth 2.0 Client ID
+  [ ] Tipo: Web application
+  [ ] Authorized redirect URIs:
+        https://<seu-projeto>.supabase.co/auth/v1/callback
+  [ ] Copiar Client ID e Client Secret
+  [ ] Colar no Supabase > Authentication > Google
+
+
+ETAPA 3 — Deploy na Vercel
+Tempo estimado: 15 minutos
+
+  [ ] Criar conta em vercel.com (pode usar conta GitHub)
+  [ ] New Project > Import o repositorio do GitHub
+  [ ] Framework: Vite (detectado automaticamente)
+  [ ] Configurar variaveis de ambiente:
+
+        VITE_SUPABASE_URL       = https://xxx.supabase.co
+        VITE_SUPABASE_ANON_KEY  = sb_publishable_xxx
+        GROQ_API_KEY            = gsk_xxx
+        HF_TOKEN                = hf_xxx
+
+  [ ] Clicar em Deploy e aguardar o build completar
+  [ ] Testar a URL gerada pela Vercel (ex: visionsearch.vercel.app)
+
+
+ETAPA 4 — Configurar Dominio
+Tempo estimado: 30 minutos + propagacao DNS (ate 24h)
+
+  [ ] Registrar dominio em registro.br (.com.br) ou cloudflare.com (.com)
+  [ ] Na Vercel: Project Settings > Domains > Add Domain
+  [ ] Adicionar os registros DNS indicados pela Vercel no painel do registrador
+  [ ] Aguardar propagacao (geralmente 15 min a 2 horas)
+  [ ] Verificar se HTTPS esta ativo (Vercel faz automatico)
+
+
+ETAPA 5 — Ajustar URLs no Supabase
+Tempo estimado: 10 minutos
+
+  [ ] Supabase > Authentication > URL Configuration
+  [ ] Site URL: https://seudominio.com.br
+  [ ] Redirect URLs: adicionar https://seudominio.com.br
+  [ ] Google Cloud Console: atualizar Authorized redirect URIs com o novo dominio
+
+
+ETAPA 6 — Popular o banco com produtos reais
+Tempo estimado: variavel (depende do catalogo)
+
+  [ ] Acessar o app em producao com login admin
+  [ ] Admin > cadastrar fornecedores reais
+  [ ] Admin > cadastrar produtos com fotos reais (upload via Supabase Storage)
+  [ ] Admin > Seed & Import > "Gerar embeddings" para todos os produtos
+  [ ] Testar busca por imagem com fotos reais do catalogo
+
+
+ETAPA 7 — Testes finais antes de liberar
+Tempo estimado: 1–2 horas
+
+  [ ] Testar login com Google em producao
+  [ ] Testar upload de imagem e analise pela IA
+  [ ] Verificar se a busca retorna resultados corretos
+  [ ] Testar em dispositivo movel (responsividade)
+  [ ] Verificar se o admin consegue adicionar e remover produtos
+  [ ] Confirmar que usuarios nao-admin nao acessam o painel
+
+
+========================================
+4. RESUMO DE TEMPO TOTAL
+========================================
+
+  Supabase producao                    30 min
+  Google OAuth                         20 min
+  Deploy Vercel                        15 min
+  Dominio + DNS                        30 min + ate 2h de propagacao
+  URLs de producao                     10 min
+  Popular banco com dados reais        2 a 8 horas
+  Testes finais                        1 a 2 horas
+  --------------------------------------------------
+  TOTAL (sem cadastro de produtos)     ~2 a 3 horas
+
+
+========================================
+5. RECOMENDACAO DE LANCAMENTO
+========================================
+
+Para um primeiro lancamento com custo zero ou minimo:
+
+  1. Use o plano gratuito de tudo:
+     Supabase Free + Vercel Hobby + Groq Free + HuggingFace Free
+
+  2. Registre um dominio .com.br (R$ 50/ano) para dar credibilidade ao projeto.
+
+  3. Migre para Vercel Pro (~R$ 120/mes) assim que houver clientes pagando,
+     pois o plano Hobby nao e permitido para uso comercial.
+
+  4. Monitore o consumo do Groq. O free tier aguenta bem ate ~200 buscas/mes.
+     Com mais volume, passe para pay-as-you-go (~R$ 0,05 por busca).
+
+
+CUSTO PARA LANCAR HOJE:
+  R$ 50/ano de dominio + R$ 0/mes de infraestrutura
+
+
+========================================
+
+Documento gerado em abril de 2026.
+Precos em dolar convertidos a R$ 6,00.
+Verificar precos atuais nos sites dos provedores antes de contratar.
